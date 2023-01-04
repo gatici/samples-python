@@ -6,7 +6,42 @@ This is the set of Python samples for the [Python SDK](https://github.com/tempor
 
 The Python SDK is under development. There are no compatibility guarantees nor proper documentation pages at this time.
 
-## Usage
+## How to run Temporalio ?
+
+Install docker 
+
+* [Docker installation](https://docs.docker.com/engine/install/)
+
+Install docker-compose 
+
+* [Docker compose installation](https://docs.docker.com/compose/install/)
+
+
+Clone and Run Temporalio
+
+```
+git clone https://github.com/temporalio/docker-compose.git
+cd docker-compose
+docker compose up
+```
+
+You should have Temporal Cluster running at http://127.0.0.1:7233 and The Temporal Web UI at http://127.0.0.1:8080.
+
+## Install Dependencies
+
+```
+pip install temporalio poetry
+```
+
+## Get the Samples
+
+```
+pip install temporalio poetry
+git clone https://github.com/temporalio/samples-python.git
+cd  samples-python
+```
+
+## Usage of Samples
 
 Prerequisites:
 
@@ -29,6 +64,8 @@ Some examples require extra dependencies. See each sample's directory for specif
 * [hello](hello) - All of the basic features.
   <!-- Keep this list in alphabetical order and in sync on hello/README.md and root README.md -->
   * [hello_activity](hello/hello_activity.py) - Execute an activity from a workflow.
+  * [hello_rollback](hello/hello_activity.py) - Execute an activity and run another compensation activity if it fails
+  * [hello_rollback_with_saga](hello/hello_activity.py) - Execute an activity which includes several actions with their compensations using Saga
   * [hello_activity_choice](hello/hello_activity_choice.py) - Execute certain activities inside a workflow based on
     dynamic input.
   * [hello_activity_multiprocess](hello/hello_activity_multiprocess.py) - Execute a synchronous activity on a process
@@ -69,3 +106,62 @@ Running the tests requires `poe` to be installed.
 Once you have `poe` installed you can run:
 
     poe test
+
+## Rollback with Temporalio
+
+Execute the compensation actions by using only Temporal
+
+`python hello_rollback.py`
+
+```
+Completing activity as failed ({'activity_id': '1', 'activity_type': 'change_value_activity', 'attempt': 1, 'namespace': 'default', 'task_queue': 'hello-rollback-task-queue', 'workflow_id': 'hello-change-value-workflow-id', 'workflow_run_id': '1073840f-e457-4716-ad41-91cbb38c2048', 'workflow_type': 'ChangeValueWorkflow'})
+Traceback (most recent call last):
+  File "/home/gatici/OSM/temporal/samples-python/venv/lib/python3.8/site-packages/temporalio/worker/_activity.py", line 402, in _run_activity
+    result = await impl.execute_activity(input)
+  File "/home/gatici/OSM/temporal/samples-python/venv/lib/python3.8/site-packages/temporalio/worker/_activity.py", line 640, in execute_activity
+    return await input.fn(*input.args)
+  File "hello_rollback.py", line 30, in change_value_activity
+    raise ChangeValueException(f"Change value Exception is raised while changing the {USER_NUMBER}")
+ChangeValueException: Change value Exception is raised while changing the 9
+DEBUG:root:Resetting USER_NUMBER to initial value.
+DEBUG:temporalio.worker._activity:Completing activity with completion: task_token: "\n$a58613cf-f986-4148-8747-fc4a2fdf14b6\022 hello-rollback-workflow-child-id\032$c09642b4-9c49-4644-bb98-b47578d8f1c2 \005(\0012\0011B\025compensation_activityJ\t\010\004\020\325\263\200\002\030\001"
+result {
+  completed {
+    result {
+      metadata {
+        key: "encoding"
+        value: "binary/null"
+      }
+    }
+  }
+}
+
+DEBUG:root:USER_NUMBER: 0
+INFO:temporalio.worker._worker:Beginning worker shutdown, will wait 0:00:00 before cancelling activities
+```
+
+
+Execute the compensation actions by using Saga on Temporal
+`python hello_rollback_with_saga.py`
+
+```
+DEBUG:root:USER_NUMBER changed to -4
+DEBUG:root:USER_NUMBER changed to 20
+DEBUG:root:Compensation_action2 executed, USER_NUMBER: -4
+DEBUG:root:(ChangeValueException('Change value Exception is raised while changing the 16'), [CompensationException('Compensation exception occured.')])
+DEBUG:root:Resetting USER_NUMBER to initial value.
+DEBUG:temporalio.worker._activity:Completing activity with completion: task_token: "\n$a58613cf-f986-4148-8747-fc4a2fdf14b6\022\036hello-change-value-workflow-id\032$de605580-ab06-4543-a39b-6ba3f0451e06 \005(\0012\0011B\rsaga_activityJ\t\010\004\020\207\264\200\002\030\001"
+result {
+  completed {
+    result {
+      metadata {
+        key: "encoding"
+        value: "binary/null"
+      }
+    }
+  }
+}
+
+DEBUG:root:USER_NUMBER: 0
+INFO:temporalio.worker._worker:Beginning worker shutdown, will wait 0:00:00 before cancelling activities
+```
